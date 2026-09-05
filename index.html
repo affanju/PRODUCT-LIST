@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Product Lookup">
+<meta name="theme-color" content="#faf7f2">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<title>Product Info & Packaging Lookup</title>
+<style>
+  :root{
+    --ink:#1c1c1c; --paper:#faf7f2; --line:#e3ddd2;
+    --aldi:#f4e7b8; --coles:#f6d9d6; --accent:#8a3b2f;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+    background:var(--paper); color:var(--ink);
+  }
+  header{
+    padding:20px 24px 14px; border-bottom:2px solid var(--ink);
+    background:#fff;
+  }
+  header h1{margin:0 0 4px; font-size:1.3rem;}
+  header p{margin:0; color:#666; font-size:.85rem;}
+  .controls{
+    padding:14px 24px; background:#fff; border-bottom:1px solid var(--line);
+    position:sticky; top:0; z-index:15;
+  }
+  input{
+    font-size:1rem; padding:11px 14px; border:1px solid #c9c2b3; border-radius:10px;
+    background:#fff; color:var(--ink); width:100%;
+  }
+  .search-wrap{position:relative;}
+  .suggestions{
+    position:absolute; top:calc(100% + 4px); left:0; right:0; background:#fff;
+    border:1px solid #c9c2b3; border-radius:8px; max-height:260px; overflow-y:auto;
+    box-shadow:0 6px 18px rgba(0,0,0,.1); z-index:20; display:none;
+  }
+  .suggestions.open{display:block;}
+  .suggestions button{
+    display:block; width:100%; text-align:left; background:none; border:none;
+    padding:10px 14px; font-size:.9rem; cursor:pointer; border-bottom:1px solid var(--line);
+    color:var(--ink);
+  }
+  .suggestions button:last-child{border-bottom:none;}
+  .suggestions button:hover, .suggestions button:focus{background:#f5f1e8;}
+  .suggestions .tag{font-size:.7rem; font-weight:700; margin-right:6px; color:#8a8478;}
+  .badge{
+    display:inline-block; padding:2px 9px; border-radius:20px; font-size:.72rem;
+    font-weight:600; letter-spacing:.03em;
+  }
+  .badge.aldi{background:var(--aldi); color:#6b5000;}
+  .badge.coles{background:var(--coles); color:var(--accent);}
+  .badge.ww{background:#d6e8d6; color:#2e5c2e;}
+  .badge.proprietary{background:#d9e3f0; color:#2e4a6b;}
+  main{padding:16px 20px 60px; max-width:820px; margin:0 auto;}
+  .empty{color:#888; text-align:center; padding:60px 20px; font-size:.95rem;}
+
+  /* Grouped browse list */
+  .group{margin-bottom:14px; border:1px solid var(--line); border-radius:14px; overflow:hidden; background:#fff;}
+  .group-head{
+    display:flex; align-items:center; gap:10px; padding:14px 16px; cursor:pointer;
+    user-select:none; background:#fff;
+  }
+  .group-head .chevron{
+    transition:transform .15s ease; font-size:.75rem; color:#b3ab9c;
+  }
+  .group.collapsed .chevron{transform:rotate(-90deg);}
+  .group-head .badge{font-size:.78rem; padding:3px 11px;}
+  .group-head .count{color:#a39c8d; font-size:.8rem; margin-left:auto; font-weight:500;}
+  .group-note{
+    margin:0 12px 10px; padding:8px 10px; background:#fdf6e3; border:1px solid #ecdcae;
+    border-radius:8px; font-size:.73rem; color:#6b5a2e;
+  }
+  .group-list{display:flex; flex-direction:column; border-top:1px solid var(--line);}
+  .group.collapsed .group-list{display:none;}
+  .subcat-head{
+    padding:9px 16px 5px; font-size:.68rem; font-weight:700; text-transform:uppercase;
+    letter-spacing:.06em; color:#a39c8d; background:#fbf9f5;
+  }
+  .product-row{
+    display:flex; align-items:center; gap:12px;
+    background:#fff; border:none; border-bottom:1px solid #f0ece3;
+    padding:12px 16px; cursor:pointer; text-align:left; width:100%;
+    font-family:inherit; color:var(--ink);
+  }
+  .group-list .product-row:last-child{border-bottom:none;}
+  .product-row:active{background:#f5f1e8;}
+  .product-row .icon{
+    font-size:1.3rem; flex-shrink:0; width:34px; height:34px; display:flex;
+    align-items:center; justify-content:center; background:#f6f2e9; border-radius:9px;
+  }
+  .product-row .info{flex:1; min-width:0;}
+  .product-row .info .name{font-size:.9rem; font-weight:500; line-height:1.3;}
+  .product-row .info .sub{font-size:.75rem; color:#a39c8d; margin-top:1px;}
+  .product-row .arrow{color:#c9c2b3; font-size:1.1rem; flex-shrink:0;}
+
+  .back-btn{
+    display:inline-flex; align-items:center; gap:6px; background:none; border:none;
+    color:var(--accent); font-size:.9rem; font-weight:600; padding:6px 2px 14px;
+    cursor:pointer; font-family:inherit;
+  }
+
+  .card{
+    background:#fff; border:1px solid var(--line); border-radius:14px;
+    overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,.04);
+  }
+  .card-head{
+    padding:18px 20px; border-bottom:1px solid var(--line);
+    display:flex; justify-content:space-between; align-items:flex-start; gap:12px;
+  }
+  .card-head h2{margin:0 0 6px; font-size:1.15rem; line-height:1.3;}
+  .hw-pill{
+    flex-shrink:0; background:#fdf6e3; border:1px solid #ecdcae; border-radius:10px;
+    padding:6px 12px; text-align:center;
+  }
+  .hw-pill .hw-label{display:block; font-size:.62rem; text-transform:uppercase; letter-spacing:.05em; color:#a3822e;}
+  .hw-pill .hw-value{display:block; font-size:1rem; font-weight:700; color:#6b5a2e; letter-spacing:.02em;}
+  .allergen-flag{
+    background:#fdecea; color:#a33; border:1px solid #f2c6c2; border-radius:8px;
+    padding:10px 14px; margin:14px 20px 0; font-size:.85rem; font-weight:600;
+  }
+  .grid{
+    display:grid; grid-template-columns:1fr 1fr; gap:0;
+  }
+  .field{
+    padding:12px 20px; border-bottom:1px solid var(--line); border-right:1px solid var(--line);
+  }
+  .field:nth-child(2n){border-right:none;}
+  .field .label{
+    font-size:.68rem; text-transform:uppercase; letter-spacing:.05em; color:#8a8478; margin-bottom:3px;
+  }
+  .field .value{font-size:.95rem; font-weight:500; word-break:break-word;}
+  .note{
+    margin:16px 0 0; padding:12px 16px; background:#fbf5e8; border:1px solid #ecdcae;
+    border-radius:10px; font-size:.8rem; color:#6b5a2e;
+  }
+  .bbd-calc{
+    margin:16px 20px 0; padding:14px 16px; background:#f3f7f2; border:1px solid #cfe0cc;
+    border-radius:10px;
+  }
+  .bbd-calc .bbd-title{font-size:.75rem; text-transform:uppercase; letter-spacing:.05em; color:#4a6b46; font-weight:700; margin-bottom:8px;}
+  .bbd-calc .bbd-row{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+  .bbd-calc input[type="date"]{flex:1; min-width:150px; padding:8px 10px; font-size:.9rem; border:1px solid #b9cdb4; border-radius:7px;}
+  .bbd-calc .bbd-result{margin-top:10px; font-size:1.05rem; font-weight:700; color:#2e5c2e;}
+  .bbd-calc .bbd-sub{font-size:.75rem; color:#5a7a56; margin-top:2px;}
+  @media (max-width:520px){ .grid{grid-template-columns:1fr;} .field:nth-child(2n){border-right:1px solid var(--line);} }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Product Info & Packaging Lookup</h1>
+  <p>Product Information &amp; Packaging Matrix — select a product to view its full spec sheet</p>
+</header>
+
+<div class="controls">
+  <div class="search-wrap">
+    <input id="search" type="text" placeholder="Search products…" autocomplete="off">
+    <div id="suggestions" class="suggestions"></div>
+  </div>
+</div>
+
+<main id="main"></main>
+
+<script>
+const products = [
+// ---- ALDI ----
+{customer:"ALDI", name:"Aldi Beef Meatloaf", code:"FG0260", barcodeLast4:"0260", unitBarcode:"4061463640260", gtin:"4069366189541", shelfLife:"BBD P+15", allergens:"Sulphites, Soy", claims:"Gluten Free", netWeight:"1 kg", waxPapers:"N", traySize:"150x220x70mm", trayColour:"Foil Tray", unitsPerTray:"1", unitsPerCarton:"6", labelPlacement:"MIDDLE", cartonCode:"PK1302", cartonWeight:"6.0 kg", bizerbaTare:"0.025", totalTare:"0.034", xray:"Meatloaf", handwrittenCode:"753856"},
+{customer:"ALDI", name:"FF Pork & Beef Cheesy Bratwurst", code:"FG2648", barcodeLast4:"2648", unitBarcode:"9339529002648", gtin:"9339529002648", shelfLife:"BBD P+17", allergens:"Sulphites, Milk", claims:"Gluten Free", netWeight:"450g", waxPapers:"N", traySize:"8x6x40mm", trayColour:"Clear", unitsPerTray:"4", unitsPerCarton:"12", labelPlacement:"RIGHT", cartonCode:"PK1168 / #107", cartonWeight:"5.4 kg", bizerbaTare:"0.016", totalTare:"0.023", xray:"Cheesy Brat", handwrittenCode:"672384"},
+{customer:"ALDI", name:"FF Beef, Tomato & Mozzarella Meatballs", code:"FG2655", barcodeLast4:"2655", unitBarcode:"9339529002655", gtin:"9339529002655", shelfLife:"BBD P+17", allergens:"Sulphites, Soy, Milk", claims:"Gluten Free", netWeight:"400g", waxPapers:"N", traySize:"9x7x38mm", trayColour:"Clear", unitsPerTray:"20", unitsPerCarton:"9", labelPlacement:"RIGHT", cartonCode:"#PK1340", cartonWeight:"3.6 kg", bizerbaTare:"0.022", totalTare:"0.027", xray:"Meatballs 9x7", handwrittenCode:"691224"},
+{customer:"ALDI", name:"ALDI Lamb Kofta", code:"FG6356", barcodeLast4:"6356", unitBarcode:"4061461956356", gtin:"4061463179906", shelfLife:"BBD P+19", allergens:"Sulphites, Soy", claims:"Gluten Free", netWeight:"450g", waxPapers:"N", traySize:"11x7x40mm", trayColour:"Clear MAP", unitsPerTray:"6", unitsPerCarton:"12", labelPlacement:"LEFT", cartonCode:"#PK1288", cartonWeight:"5.4 kg", bizerbaTare:"0.022", totalTare:"0.027", xray:"Lamb Kofta", handwrittenCode:"620572"},
+{customer:"ALDI", name:"ALDI Beef Kofta", code:"FG8232", barcodeLast4:"8232", unitBarcode:"4061462688232", gtin:"4069365122945", shelfLife:"BBD P+19", allergens:"Sulphites, Soy", claims:"Gluten Free", netWeight:"450g", waxPapers:"N", traySize:"11x7x40mm", trayColour:"Clear MAP", unitsPerTray:"6", unitsPerCarton:"12", labelPlacement:"LEFT", cartonCode:"#PK1288", cartonWeight:"5.4 kg", bizerbaTare:"0.022", totalTare:"0.027", xray:"Beef Kofta", handwrittenCode:"689007"},
+{customer:"ALDI", name:"Aldi Specially Selected Beef Garlic & Parsley Sausages", code:"FG3003", barcodeLast4:"3003", unitBarcode:"4069365123003", gtin:"4069365123300", shelfLife:"BBD P+17", allergens:"Sulphites", claims:"Gluten Free", netWeight:"1 kg", waxPapers:"N", traySize:"9x7x60mm", trayColour:"Clear", unitsPerTray:"12", unitsPerCarton:"6", labelPlacement:"MIDDLE", cartonCode:"#PK1317", cartonWeight:"6 kg", bizerbaTare:"0.025", totalTare:"0.033", xray:"1 kg", handwrittenCode:"689029"},
+{customer:"ALDI", name:"ALDI Italian Pork & Beef Sausages", code:"FG3519", barcodeLast4:"3519", unitBarcode:"4061459653519", gtin:"4061459669558", shelfLife:"BBD P+17", allergens:"Sulphites", claims:"Gluten Free", netWeight:"1 kg", waxPapers:"N", traySize:"9x7x60mm", trayColour:"Clear", unitsPerTray:"12", unitsPerCarton:"6", labelPlacement:"MIDDLE", cartonCode:"#107", cartonWeight:"6 kg", bizerbaTare:"0.025", totalTare:"0.033", xray:"1 kg", handwrittenCode:"631531"},
+{customer:"ALDI", name:"Aldi Specially Selected Pork & Pepper Gourmet Sausages", code:"FG5562", barcodeLast4:"5562", unitBarcode:"4088700075562", gtin:"4061463420961", shelfLife:"BBD P+19", allergens:"Sulphites", claims:"Gluten Free", netWeight:"500g", waxPapers:"N", traySize:"8x6x40mm", trayColour:"Clear", unitsPerTray:"6", unitsPerCarton:"12", labelPlacement:"MIDDLE", cartonCode:"#106", cartonWeight:"6 kg", bizerbaTare:"0.016", totalTare:"0.023", xray:"Pork Pepper", handwrittenCode:"405882"},
+{customer:"ALDI", name:"Aldi Specially Selected Chicken, Fetta & Parsley Gourmet Sausages", code:"FG5579", barcodeLast4:"5579", unitBarcode:"4088700075579", gtin:"4061463420879", shelfLife:"BBD P+19", allergens:"Sulphites, Milk", claims:"Gluten Free", netWeight:"500g", waxPapers:"N", traySize:"8x6x40mm", trayColour:"Clear", unitsPerTray:"6", unitsPerCarton:"12", labelPlacement:"MIDDLE", cartonCode:"#106", cartonWeight:"6 kg", bizerbaTare:"0.016", totalTare:"0.023", xray:"Chicken Fetta", handwrittenCode:"405883"},
+
+// ---- COLES ----
+{customer:"COLES", name:"Coles Beef Rissoles Classic", code:"FG7182", barcodeLast4:"7182", unitBarcode:"9310645177182", gtin:"19310645177189", shelfLife:"BBD P+19", allergens:"Sulphites, Soy", claims:"No Added Hormones Beef", netWeight:"440g e", waxPapers:"N", traySize:"9x7x40mm", trayColour:"Clear MAP Rissole", unitsPerTray:"6", unitsPerCarton:"6", labelPlacement:"RIGHT", cartonCode:"#37 PK1035 NEW", cartonWeight:"2.64 kg", bizerbaTare:"0.020", totalTare:"0.024", xray:"Rissoles"},
+{customer:"COLES", name:"Coles Chicken Burgers, Zucchini & Cheddar Cheese", code:"FG6798", barcodeLast4:"6798", unitBarcode:"9310645466798", gtin:"19310645466795", shelfLife:"BBD P+15", allergens:"Sulphites, Milk, Soy", claims:"RSPCA, Gluten Free", netWeight:"450g", waxPapers:"Y", traySize:"9x5x50mm", trayColour:"Clear Burger", unitsPerTray:"4", unitsPerCarton:"6", labelPlacement:"RIGHT", cartonCode:"#37", cartonWeight:"2.70 kg", bizerbaTare:"0.017", totalTare:"0.022", xray:"Chicken Zucchini & Cheddar Cheese Burger"},
+{customer:"COLES", name:"Coles Beef and Pork Meatballs", code:"FG2825", barcodeLast4:"2825", unitBarcode:"9310645272825", gtin:"19310645272822", shelfLife:"BBD P+19", allergens:"Sulphites, Soy", claims:"SSF Pork & No Added Hormone Beef, Gluten Free", netWeight:"560g", waxPapers:"N", traySize:"11x7x30mm", trayColour:"Clear MAP", unitsPerTray:"28", unitsPerCarton:"6", labelPlacement:"RIGHT", cartonCode:"#86", cartonWeight:"3.36 kg", bizerbaTare:"0.031", totalTare:"0.032", xray:"Meatball 11x7"},
+{customer:"COLES", name:"Coles Beef and Thyme Burgers", code:"FG6249", barcodeLast4:"6249", unitBarcode:"9310645216249", gtin:"19310645216246", shelfLife:"BBD P+19", allergens:"Sulphites, Soy", claims:"Gluten Free, No Added Hormone Beef", netWeight:"500g", waxPapers:"N", traySize:"9x5x50mm", trayColour:"Clear MAP", unitsPerTray:"4", unitsPerCarton:"6", labelPlacement:"RIGHT", cartonCode:"#37", cartonWeight:"3.00 kg", bizerbaTare:"0.017", totalTare:"0.022", xray:"Beef & Thyme Burger"},
+{customer:"COLES", name:"Coles Beef Kebabs", code:"FG3829", barcodeLast4:"3829", unitBarcode:"9310645443829", gtin:"19310645443826", shelfLife:"BBD P+19", allergens:"Sulphites, Soy", claims:"Gluten Free, No Added Hormone Beef", netWeight:"450g", waxPapers:"N", traySize:"11x7x40mm", trayColour:"Clear MAP", unitsPerTray:"6", unitsPerCarton:"6", labelPlacement:"RIGHT", cartonCode:"#86", cartonWeight:"2.70 kg", bizerbaTare:"0.031", totalTare:"0.036", xray:"Beef Kebab"},
+{customer:"COLES", name:"Coles Lamb Kebabs", code:"FG2087", barcodeLast4:"2087", unitBarcode:"9310645322087", gtin:"19310645322084", shelfLife:"BBD P+17", allergens:"Sulphites, Soy", claims:"Gluten Free", netWeight:"450g", waxPapers:"N", traySize:"11x7x40mm", trayColour:"Clear MAP", unitsPerTray:"6", unitsPerCarton:"6", labelPlacement:"RIGHT", cartonCode:"#86", cartonWeight:"2.70 kg", bizerbaTare:"0.031", totalTare:"0.036", xray:"Lamb Kebab"},
+{customer:"COLES", name:"Coles Beef Smash Burger", code:"FG4438", barcodeLast4:"4438", unitBarcode:"9310645504438", gtin:"19310645504435", shelfLife:"BBD P+19", allergens:"Sulphites, Soy, May Contain Milk", claims:"Gluten Free, No Added Hormone Beef", netWeight:"450g e", waxPapers:"N", traySize:"9x7x40mm", trayColour:"Clear Burger", unitsPerTray:"6", unitsPerCarton:"6", labelPlacement:"RIGHT", cartonCode:"#37 PK1035 NEW", cartonWeight:"2.70 kg", bizerbaTare:"0.020", totalTare:"0.024", xray:"Smash Beef Burger"},
+{customer:"COLES", name:"Coles Beef Stacker Burger", code:"FG4421", barcodeLast4:"4421", unitBarcode:"9310645504421", gtin:"19310645504428", shelfLife:"BBD P+19", allergens:"Sulphites, Soy, May Contain Milk", claims:"Gluten Free, No Added Hormone Beef", netWeight:"500g e", waxPapers:"Y", traySize:"9x5x50mm", trayColour:"Clear Burger", unitsPerTray:"6", unitsPerCarton:"6", labelPlacement:"RIGHT", cartonCode:"#37 PK1035 NEW", cartonWeight:"3.00 kg", bizerbaTare:"0.017", totalTare:"0.022", xray:"Stacker Beef Burger"},
+{customer:"COLES", name:"Coles Classic Beef Burger", code:"FG1998", barcodeLast4:"1998", unitBarcode:"9310645321998", gtin:"19310645321995", shelfLife:"BBD P+19", allergens:"Sulphites, Soy", claims:"Gluten Free, No Added Hormone Beef", netWeight:"500g", waxPapers:"N", traySize:"9x5x50mm", trayColour:"Clear Burger", unitsPerTray:"4", unitsPerCarton:"6", labelPlacement:"RIGHT", cartonCode:"#37", cartonWeight:"3.00 kg", bizerbaTare:"0.017", totalTare:"0.022", xray:"Classic Beef"},
+{customer:"COLES", name:"Coles Finest Beef Brisket Burger", code:"FG6232", barcodeLast4:"6232", unitBarcode:"9310645216232", gtin:"19310645216239", shelfLife:"BBD P+19", allergens:"Sulphites, Soy", claims:"Gluten Free, No Added Hormone Beef", netWeight:"600g", waxPapers:"N", traySize:"262x150x40mm", trayColour:"Clear MAP", unitsPerTray:"6", unitsPerCarton:"6", labelPlacement:"MIDDLE", cartonCode:"#86", cartonWeight:"3.60 kg", bizerbaTare:"0.023", totalTare:"0.032", xray:"Brisket Burger"},
+{customer:"COLES", name:"Coles Finest Meatballs with Australian Pinot & Roasted Garlic", code:"FG4785", barcodeLast4:"4785", unitBarcode:"9310645484785", gtin:"19310645484782", shelfLife:"BBD P+19", allergens:"Sulphites, Soy", claims:"Gluten Free, No Added Hormone Beef", netWeight:"450g", waxPapers:"N", traySize:"9x7x45mm", trayColour:"Clear Meatball", unitsPerTray:"12", unitsPerCarton:"6", labelPlacement:"RIGHT", cartonCode:"#37 / PK1035", cartonWeight:"2.70 kg", bizerbaTare:"0.023", totalTare:"0.028", xray:"Finest Meatballs"},
+{customer:"COLES", name:"Coles Finest Beef Thick & Juicy Burger", code:"FG3219", barcodeLast4:"3219", unitBarcode:"9310645363219", gtin:"19310645363216", shelfLife:"BBD P+19", allergens:"Sulphites", claims:"Gluten Free, No Added Hormone Beef", netWeight:"300g", waxPapers:"N", traySize:"9x5x30mm", trayColour:"Clear Finest Tray", unitsPerTray:"2", unitsPerCarton:"6", labelPlacement:"MIDDLE", cartonCode:"#PK1295", cartonWeight:"1.80 kg", bizerbaTare:"0.015", totalTare:"0.020", xray:"Thick & Juicy Burger"},
+{customer:"COLES", name:"Coles Finest Mediterranean Lamb Burger", code:"FG4452", barcodeLast4:"4452", unitBarcode:"9310645504452", gtin:"19310645504459", shelfLife:"BBD P+19", allergens:"Contains Sulphites, May Contain Milk, Soy", claims:"Gluten Free", netWeight:"300g e", waxPapers:"N", traySize:"9x5x30mm", trayColour:"Clear Burger", unitsPerTray:"2", unitsPerCarton:"6", labelPlacement:"MIDDLE", cartonCode:"PK1295 Coles Finest Carton (No Vents)", cartonWeight:"1.80 kg", bizerbaTare:"0.015", totalTare:"0.020", xray:"Lamb Burger"},
+{customer:"COLES", name:"Graze Grass Fed Beef Meatballs", code:"FG6277", barcodeLast4:"6277", unitBarcode:"9310645176277", gtin:"19310645176274", shelfLife:"BBD P+19", allergens:"Sulphites, Soy", claims:"Grass Fed", netWeight:"420g", waxPapers:"N", traySize:"9x7x45mm", trayColour:"Clear Meatball", unitsPerTray:"12", unitsPerCarton:"6", labelPlacement:"RIGHT", cartonCode:"#37", cartonWeight:"2.52 kg", bizerbaTare:"0.023", totalTare:"0.028", xray:"Meatballs 9x7"},
+{customer:"COLES", name:"Graze Grass Fed Beef Burgers", code:"FG5092", barcodeLast4:"5092", unitBarcode:"9310645115092", gtin:"19310645115099", shelfLife:"BBD P+19", allergens:"Sulphites", claims:"Grass Fed", netWeight:"500g", waxPapers:"N", traySize:"9x5x50mm", trayColour:"Clear Burger", unitsPerTray:"4", unitsPerCarton:"6", labelPlacement:"RIGHT", cartonCode:"#37", cartonWeight:"3.00 kg", bizerbaTare:"0.017", totalTare:"0.022", xray:"Graze Beef"},
+{customer:"COLES", name:"QuiteLike Garlic & Thyme Meatballs", code:"QL0001", barcodeLast4:"1", unitBarcode:"—", gtin:"—", shelfLife:"BBD P+17", allergens:"Sulphites, Soy", claims:"Gluten Free, No Added Hormone Beef", netWeight:"500g", waxPapers:"N", traySize:"9x7x40mm", trayColour:"Clear Meatball", unitsPerTray:"6", unitsPerCarton:"4", labelPlacement:"RIGHT", cartonCode:"#PK1295", cartonWeight:"2.00 kg", bizerbaTare:"0.020", totalTare:"0.024", xray:"Finest Meatballs"},
+{customer:"COLES", name:"QuiteLike Thick & Juicy Burger", code:"QL0002", barcodeLast4:"2", unitBarcode:"—", gtin:"—", shelfLife:"BBD P+17", allergens:"Sulphites", claims:"Gluten Free, No Added Hormone Beef", netWeight:"300g", waxPapers:"N", traySize:"9x5x30mm", trayColour:"Clear Finest Tray", unitsPerTray:"2", unitsPerCarton:"6", labelPlacement:"RIGHT", cartonCode:"#PK1295", cartonWeight:"1.80 kg", bizerbaTare:"0.015", totalTare:"0.020", xray:"Thick & Juicy Burger"}
+];
+
+const search = document.getElementById('search');
+const suggestions = document.getElementById('suggestions');
+const main = document.getElementById('main');
+
+products.forEach((p,i)=>p.__idx=i);
+
+const CUSTOMER_ORDER = ["ALDI", "COLES", "WW", "PROPRIETARY"];
+
+function groupByCustomer(list){
+  const groups = {};
+  list.forEach(p=>{
+    if(!groups[p.customer]) groups[p.customer] = [];
+    groups[p.customer].push(p);
+  });
+  return groups;
+}
+
+const GROUP_NOTES = {
+  ALDI: "General handwritten reference no. for all ALDI products: 1148018"
+};
+
+function productIcon(name){
+  const n = name.toLowerCase();
+  if(n.includes('kebab')) return '🍢';
+  if(n.includes('meatball')) return '🧆';
+  if(n.includes('burger')) return '🍔';
+  if(n.includes('rissole')) return '🥩';
+  if(n.includes('sausage') || n.includes('bratwurst')) return '🌭';
+  if(n.includes('kofta')) return '🍖';
+  if(n.includes('meatloaf')) return '🍖';
+  return '🥫';
+}
+
+function productCategory(name){
+  const n = name.toLowerCase();
+  if(n.includes('kebab')) return 'Kebabs';
+  if(n.includes('meatball')) return 'Meatballs';
+  if(n.includes('burger')) return 'Burgers';
+  if(n.includes('rissole')) return 'Rissoles';
+  if(n.includes('sausage') || n.includes('bratwurst')) return 'Sausages';
+  if(n.includes('kofta')) return 'Koftas';
+  if(n.includes('meatloaf')) return 'Meatloaf';
+  return 'Other';
+}
+
+const CATEGORY_ORDER = ["Burgers","Meatballs","Kebabs","Rissoles","Sausages","Koftas","Meatloaf","Other"];
+
+function productRowHTML(p){
+  return `
+    <button type="button" class="product-row" data-idx="${p.__idx}">
+      <span class="icon">${productIcon(p.name)}</span>
+      <span class="info">
+        <span class="name">${p.name}</span>
+        <span class="sub">${p.netWeight} · ${p.code}</span>
+      </span>
+      <span class="arrow">›</span>
+    </button>`;
+}
+
+function renderBrowseList(){
+  const groups = groupByCustomer(products);
+  const order = CUSTOMER_ORDER.filter(c=>groups[c]);
+  main.innerHTML = order.map(customer=>{
+    const items = groups[customer];
+    const note = GROUP_NOTES[customer];
+
+    // sub-group larger lists (like COLES) by product type for easier scanning
+    let listHTML;
+    if(items.length > 10){
+      const byCategory = {};
+      items.forEach(p=>{
+        const cat = productCategory(p.name);
+        if(!byCategory[cat]) byCategory[cat] = [];
+        byCategory[cat].push(p);
+      });
+      const catOrder = CATEGORY_ORDER.filter(c=>byCategory[c]);
+      listHTML = catOrder.map(cat => `
+        <div class="subcat-head">${cat}</div>
+        ${byCategory[cat].map(productRowHTML).join('')}
+      `).join('');
+    } else {
+      listHTML = items.map(productRowHTML).join('');
+    }
+
+    return `
+      <div class="group collapsed" data-customer="${customer}">
+        <div class="group-head" data-toggle="${customer}">
+          <span class="chevron">▾</span>
+          <span class="badge ${customer.toLowerCase()}">${customer}</span>
+          <span class="count">${items.length} product${items.length===1?'':'s'}</span>
+        </div>
+        ${note ? `<div class="group-note">${note}</div>` : ''}
+        <div class="group-list">
+          ${listHTML}
+        </div>
+      </div>`;
+  }).join('');
+
+  main.querySelectorAll('.group-head').forEach(h=>{
+    h.addEventListener('click', ()=>{
+      h.closest('.group').classList.toggle('collapsed');
+    });
+  });
+  main.querySelectorAll('.product-row').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      render(products[btn.getAttribute('data-idx')]);
+    });
+  });
+}
+
+renderBrowseList();
+
+function closeSuggestions(){
+  suggestions.classList.remove('open');
+  suggestions.innerHTML = '';
+}
+
+function showSuggestions(list){
+  if(list.length===0){
+    suggestions.innerHTML = '<button disabled style="color:#999;cursor:default;">No matches</button>';
+    suggestions.classList.add('open');
+    return;
+  }
+  suggestions.innerHTML = list.map(p =>
+    `<button type="button" data-idx="${p.__idx}"><span class="tag">${p.customer}</span>${p.name}</button>`
+  ).join('');
+  suggestions.classList.add('open');
+}
+
+search.addEventListener('input', ()=>{
+  const q = search.value.toLowerCase().trim();
+  if(q===""){ closeSuggestions(); return; }
+  const filtered = products.filter(p =>
+    p.name.toLowerCase().includes(q) ||
+    p.code.toLowerCase().includes(q) ||
+    p.barcodeLast4.toLowerCase().includes(q) ||
+    p.customer.toLowerCase().includes(q)
+  );
+  showSuggestions(filtered);
+});
+
+search.addEventListener('focus', ()=>{
+  if(search.value.trim()!=="") search.dispatchEvent(new Event('input'));
+});
+
+suggestions.addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-idx]');
+  if(!btn) return;
+  const idx = btn.getAttribute('data-idx');
+  render(products[idx]);
+  search.value = '';
+  closeSuggestions();
+});
+
+document.addEventListener('click', (e)=>{
+  if(!e.target.closest('.search-wrap')) closeSuggestions();
+});
+
+
+function parseShelfDays(shelfLife){
+  const m = shelfLife && shelfLife.match(/(\d+)/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+function formatDate(d){
+  return d.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
+}
+
+function calcBBD(p){
+  const days = parseShelfDays(p.shelfLife);
+  const dateInput = document.getElementById('prodDate');
+  const resultEl = document.getElementById('bbdResult');
+  const subEl = document.getElementById('bbdSub');
+  if(!dateInput.value || days===null){
+    resultEl.textContent = '—';
+    subEl.textContent = days===null ? 'Could not read a day count from this shelf life value.' : 'Pick a production date above.';
+    return;
+  }
+  const prodDate = new Date(dateInput.value + 'T00:00:00');
+  const bbd = new Date(prodDate);
+  bbd.setDate(bbd.getDate() + days);
+  resultEl.textContent = formatDate(bbd);
+  subEl.textContent = `${days} days from production (${p.shelfLife})`;
+}
+
+function field(label, value){
+  return `<div class="field"><div class="label">${label}</div><div class="value">${value||'—'}</div></div>`;
+}
+
+function render(p){
+  main.innerHTML = `
+    <button type="button" class="back-btn" id="backBtn">← All products</button>
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <span class="badge ${p.customer.toLowerCase()}">${p.customer}</span>
+          <h2>${p.name}</h2>
+        </div>
+        ${p.handwrittenCode ? `<div class="hw-pill"><span class="hw-label">Handwritten Ref</span><span class="hw-value">${p.handwrittenCode}</span></div>` : ''}
+      </div>
+      <div class="allergen-flag">⚠ Allergens: ${p.allergens}</div>
+      <div class="bbd-calc">
+        <div class="bbd-title">Calculate Best-Before Date</div>
+        <div class="bbd-row">
+          <input type="date" id="prodDate">
+        </div>
+        <div class="bbd-result" id="bbdResult">—</div>
+        <div class="bbd-sub" id="bbdSub">Pick a production date above.</div>
+      </div>
+      <div class="grid">
+        ${field("Farm Foods Product Code", p.code)}
+        ${field("Shelf Life", p.shelfLife)}
+        ${field("Last 4 Digits of Unit Barcode", p.barcodeLast4)}
+        ${field("Product Claims", p.claims)}
+        ${field("Unit Barcode", p.unitBarcode)}
+        ${field("GTIN Barcode", p.gtin)}
+        ${field("Net Weight", p.netWeight)}
+        ${field("Wax Papers", p.waxPapers)}
+        ${field("Tray Size", p.traySize)}
+        ${field("Tray Colour", p.trayColour)}
+        ${field("Units per Tray", p.unitsPerTray)}
+        ${field("Units per Carton", p.unitsPerCarton)}
+        ${field("Label/Sleeve Placement", p.labelPlacement)}
+        ${field("Carton/Crate Code", p.cartonCode)}
+        ${field("Carton/Crate Weight", p.cartonWeight)}
+        ${field("Bizerba Tare", p.bizerbaTare)}
+        ${field("Total Tare", p.totalTare)}
+        ${field("X-Ray/Metal Detector Program", p.xray)}
+      </div>
+      <div class="note">Sourced from the QMx-004 Product Information &amp; Packaging Matrix and cross-checked (net weight × units/carton = carton weight) for consistency.</div>
+    </div>`;
+
+  const dateInput = document.getElementById('prodDate');
+  const today = new Date();
+  dateInput.value = today.toISOString().slice(0,10);
+  dateInput.addEventListener('change', ()=>calcBBD(p));
+  calcBBD(p);
+
+  document.getElementById('backBtn').addEventListener('click', renderBrowseList);
+  window.scrollTo(0,0);
+}
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
