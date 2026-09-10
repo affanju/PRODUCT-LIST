@@ -37,6 +37,17 @@
     background:#fff; color:var(--ink); width:100%;
   }
   .search-wrap{position:relative;}
+  .sync-bar{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;}
+  .sync-btn{
+    flex:1; min-width:100px; padding:8px 10px; font-size:.78rem; font-weight:600;
+    background:#f6f2e9; border:1px solid #ecdcae; border-radius:8px; color:#6b5a2e;
+    cursor:pointer; font-family:inherit;
+  }
+  .sync-btn:active{background:#efe6d2;}
+  .sync-status{
+    margin-top:8px; font-size:.75rem; color:#3d6b3d; min-height:1em;
+  }
+  .sync-status.error{color:#a33;}
   .suggestions{
     position:absolute; top:calc(100% + 4px); left:0; right:0; background:#fff;
     border:1px solid #c9c2b3; border-radius:8px; max-height:260px; overflow-y:auto;
@@ -137,6 +148,42 @@
     font-size:.68rem; text-transform:uppercase; letter-spacing:.05em; color:#8a8478; margin-bottom:3px;
   }
   .field .value{font-size:.95rem; font-weight:500; word-break:break-word;}
+  .edit-btn{
+    display:block; width:calc(100% - 40px); margin:16px 20px 20px; padding:12px;
+    background:#f6f2e9; border:1px solid #ecdcae; border-radius:10px;
+    font-size:.88rem; font-weight:600; color:#6b5a2e; cursor:pointer; font-family:inherit;
+  }
+  .edit-btn:active{background:#efe6d2;}
+  .edited-flag{
+    margin:12px 20px 0; padding:8px 12px; background:#eef4ee; border:1px solid #cfe0cc;
+    border-radius:8px; font-size:.78rem; color:#3d6b3d; font-weight:600;
+  }
+  .edit-note{
+    margin:0 20px 12px; padding:10px 14px; background:#fdf6e3; border:1px solid #ecdcae;
+    border-radius:8px; font-size:.78rem; color:#6b5a2e;
+  }
+  .autosave-status{
+    margin:0 20px 12px; font-size:.78rem; font-weight:600; color:#3d6b3d;
+  }
+  .edit-field input[type="text"]{
+    width:100%; font-size:.9rem; padding:6px 8px; border:1px solid #c9c2b3; border-radius:6px;
+    background:#fff; color:var(--ink); font-family:inherit;
+  }
+  .edit-actions{
+    display:flex; flex-direction:column; gap:10px; padding:16px 20px 20px;
+  }
+  .btn-save{
+    padding:13px; background:var(--accent); color:#fff; border:none; border-radius:10px;
+    font-size:.92rem; font-weight:700; cursor:pointer; font-family:inherit;
+  }
+  .btn-cancel{
+    padding:12px; background:none; border:1px solid #c9c2b3; border-radius:10px;
+    font-size:.88rem; color:var(--ink); cursor:pointer; font-family:inherit;
+  }
+  .btn-reset{
+    padding:12px; background:none; border:1px solid #e0b0a8; border-radius:10px;
+    font-size:.85rem; color:#a33; cursor:pointer; font-family:inherit;
+  }
   .note{
     margin:16px 0 0; padding:12px 16px; background:#fbf5e8; border:1px solid #ecdcae;
     border-radius:10px; font-size:.8rem; color:#6b5a2e;
@@ -152,6 +199,7 @@
   .bbd-calc .bbd-sub{font-size:.75rem; color:#5a7a56; margin-top:2px;}
   @media (max-width:520px){ .grid{grid-template-columns:1fr;} .field:nth-child(2n){border-right:1px solid var(--line);} }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -165,6 +213,13 @@
     <input id="search" type="text" placeholder="Search products…" autocomplete="off">
     <div id="suggestions" class="suggestions"></div>
   </div>
+  <div class="sync-bar">
+    <button type="button" class="sync-btn" id="exportJsonBtn">⬇ Export JSON</button>
+    <button type="button" class="sync-btn" id="exportExcelBtn">⬇ Export Excel</button>
+    <button type="button" class="sync-btn" id="importBtn">⬆ Import</button>
+    <input type="file" id="importFile" accept=".json,.xlsx,.xls" style="display:none">
+  </div>
+  <div class="sync-status" id="syncStatus"></div>
 </div>
 
 <main id="main"></main>
@@ -174,7 +229,7 @@ const products = [
 // ---- ALDI ----
 {customer:"ALDI", name:"Aldi Beef Meatloaf", code:"FG0260", barcodeLast4:"0260", unitBarcode:"4061463640260", gtin:"4069366189541", shelfLife:"BBD P+15", allergens:"Sulphites, Soy", claims:"Gluten Free", netWeight:"1 kg", waxPapers:"N", traySize:"150x220x70mm", trayColour:"Foil Tray", unitsPerTray:"1", unitsPerCarton:"6", labelPlacement:"MIDDLE", cartonCode:"PK1302", cartonWeight:"6.0 kg", flu:"1974", t1:"985.000", t2:"970.000", bizerbaTareG:"25", xray:"Meatloaf", handwrittenCode:"753856"},
 {customer:"ALDI", name:"FF Beef, Tomato & Mozzarella Meatballs", code:"FG2655", barcodeLast4:"2655", unitBarcode:"9339529002655", gtin:"9339529002655", shelfLife:"BBD P+17", allergens:"Sulphites, Soy, Milk", claims:"Gluten Free", netWeight:"400g", waxPapers:"N", traySize:"9x738mm", trayColour:"Clear", unitsPerTray:"20", unitsPerCarton:"9", labelPlacement:"RIGHT", cartonCode:"#PK1340", cartonWeight:"3.6 kg", flu:"2059", t1:"388.000", t2:"376.000", bizerbaTareG:"23", xray:"Meatballs 9x7", handwrittenCode:"691224"},
-{customer:"ALDI", name:"FF Korean BBQ Beef Burgers", code:"FG2709", barcodeLast4:"2709", unitBarcode:"9339529002709", gtin:"9339529002706", shelfLife:"BBD P+19", allergens:"Sulphites", claims:"Gluten Free", netWeight:"450g", waxPapers:"N", traySize:"9x5x50mm", trayColour:"Clear Burger", unitsPerTray:"4", unitsPerCarton:"6", labelPlacement:"RIGHT", cartonCode:"#PK1299", cartonWeight:"2.70 kg", flu:"2117", t1:"436.500", t2:"423.000", bizerbaTareG:"21", xray:"Burger"},
+{customer:"ALDI", name:"FF Korean BBQ Beef Burgers", code:"FG2709", barcodeLast4:"2709", unitBarcode:"9339529002709", gtin:"9339529002706", shelfLife:"BBD P+19", allergens:"Sulphites", claims:"Gluten Free", netWeight:"450g", waxPapers:"N", traySize:"9x5x50mm", trayColour:"Clear Burger", unitsPerTray:"4", unitsPerCarton:"12", labelPlacement:"RIGHT", cartonCode:"#PK1299", cartonWeight:"5.4 kg", flu:"2117", t1:"436.500", t2:"423.000", bizerbaTareG:"21", xray:"Burger", handwrittenCode:"769829"},
 {customer:"ALDI", name:"ALDI Lamb Kofta", code:"FG6356", barcodeLast4:"6356", unitBarcode:"4061461956356", gtin:"4061463179906", shelfLife:"BBD P+19", allergens:"Sulphites", claims:"Gluten Free", netWeight:"450g", waxPapers:"N", traySize:"11x7x40mm", trayColour:"Clear MAP", unitsPerTray:"6", unitsPerCarton:"12", labelPlacement:"LEFT", cartonCode:"#PK1288", cartonWeight:"5.4 kg", flu:"1810", t1:"436.500", t2:"423.000", bizerbaTareG:"34", xray:"Lamb Kofta", handwrittenCode:"620572"},
 {customer:"ALDI", name:"ALDI Beef Kofta", code:"FG8232", barcodeLast4:"8232", unitBarcode:"4061462688232", gtin:"4069365122945", shelfLife:"BBD P+18", allergens:"Sulphites", claims:"Gluten Free", netWeight:"450g", waxPapers:"N", traySize:"11x7x40mm", trayColour:"Clear MAP", unitsPerTray:"6", unitsPerCarton:"12", labelPlacement:"LEFT", cartonCode:"#PK1288", cartonWeight:"5.4 kg", flu:"1927", t1:"436.500", t2:"423.000", bizerbaTareG:"34", xray:"Beef Kofta", handwrittenCode:"689007"},
 {customer:"ALDI", name:"Aldi Specially Selected Beef Garlic & Parsley Sausages", code:"FG3003", barcodeLast4:"3003", unitBarcode:"4069365123003", gtin:"4069365123300", shelfLife:"BBD P+17", allergens:"Sulphites", claims:"Gluten Free", netWeight:"1 kg", waxPapers:"N", traySize:"9x7x60mm", trayColour:"Clear", unitsPerTray:"12", unitsPerCarton:"6", labelPlacement:"MIDDLE", cartonCode:"#PK1317", cartonWeight:"6 kg", flu:"2045", t1:"985.000", t2:"970.000", bizerbaTareG:"26", xray:"1 kg", handwrittenCode:"689029"},
@@ -207,6 +262,158 @@ const suggestions = document.getElementById('suggestions');
 const main = document.getElementById('main');
 
 products.forEach((p,i)=>p.__idx=i);
+
+// ---- Edit overrides (persisted in this browser via localStorage) ----
+const OVERRIDES_KEY = 'productOverrides_v1';
+
+function loadOverrides(){
+  try{
+    return JSON.parse(localStorage.getItem(OVERRIDES_KEY)) || {};
+  } catch(e){ return {}; }
+}
+
+function saveOverrides(obj){
+  try{
+    localStorage.setItem(OVERRIDES_KEY, JSON.stringify(obj));
+    return true;
+  } catch(e){ return false; }
+}
+
+function applyOverrides(){
+  const overrides = loadOverrides();
+  products.forEach(p=>{
+    if(overrides[p.code]){
+      Object.assign(p, overrides[p.code]);
+    }
+  });
+}
+
+const ORIGINAL_PRODUCTS = products.map(p=>({...p}));
+applyOverrides();
+
+// ---- Export / Import ----
+function getExportColumns(){
+  return [
+    {header:'Customer', key:'customer'},
+    {header:'Farm Foods Product Code', key:'code'},
+    ...EDITABLE_FIELDS_META.map(f=>({header:f.label, key:f.key}))
+  ];
+}
+
+function showSyncStatus(msg, isError){
+  const el = document.getElementById('syncStatus');
+  if(!el) return;
+  el.textContent = msg;
+  el.className = 'sync-status' + (isError ? ' error' : '');
+  setTimeout(()=>{ if(el.textContent===msg) el.textContent=''; }, 5000);
+}
+
+function downloadBlob(content, filename, mime){
+  const blob = new Blob([content], {type: mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportJSON(){
+  const overrides = loadOverrides();
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    overrides: overrides
+  };
+  downloadBlob(JSON.stringify(payload, null, 2), 'product-lookup-overrides.json', 'application/json');
+  showSyncStatus('Exported JSON with ' + Object.keys(overrides).length + ' edited product(s).');
+}
+
+function exportExcel(){
+  if(typeof XLSX === 'undefined'){
+    showSyncStatus('Excel library did not load — check your connection and try again.', true);
+    return;
+  }
+  const columns = getExportColumns();
+  const rows = products.map(p=>{
+    const row = {};
+    columns.forEach(c=>{ row[c.header] = p[c.key] || ''; });
+    return row;
+  });
+  const ws = XLSX.utils.json_to_sheet(rows, {header: columns.map(c=>c.header)});
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Products');
+  XLSX.writeFile(wb, 'product-lookup.xlsx');
+  showSyncStatus('Exported ' + rows.length + ' products to Excel.');
+}
+
+function importJSONFile(file){
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const parsed = JSON.parse(reader.result);
+      const incoming = parsed.overrides || parsed; // accept either wrapped or raw overrides object
+      const current = loadOverrides();
+      let count = 0;
+      Object.keys(incoming).forEach(code=>{
+        current[code] = {...(current[code]||{}), ...incoming[code]};
+        count++;
+      });
+      saveOverrides(current);
+      applyOverrides();
+      renderBrowseList();
+      showSyncStatus('Imported edits for ' + count + ' product(s) from JSON.');
+    } catch(e){
+      showSyncStatus('Could not read that JSON file.', true);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function importExcelFile(file){
+  if(typeof XLSX === 'undefined'){
+    showSyncStatus('Excel library did not load — check your connection and try again.', true);
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const data = new Uint8Array(reader.result);
+      const wb = XLSX.read(data, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+      const headerToKey = {};
+      getExportColumns().forEach(c=>{ headerToKey[c.header] = c.key; });
+
+      const current = loadOverrides();
+      let count = 0;
+      rows.forEach(row=>{
+        const code = (row['Farm Foods Product Code'] || '').toString().trim();
+        if(!code) return;
+        const match = products.find(p=>p.code===code);
+        if(!match) return;
+        const updated = {};
+        EDITABLE_FIELDS_META.forEach(f=>{
+          if(row[f.label] !== undefined && row[f.label] !== ''){
+            updated[f.key] = row[f.label].toString();
+          }
+        });
+        if(Object.keys(updated).length){
+          current[code] = {...(current[code]||{}), ...updated};
+          count++;
+        }
+      });
+      saveOverrides(current);
+      applyOverrides();
+      renderBrowseList();
+      showSyncStatus('Imported edits for ' + count + ' product(s) from Excel.');
+    } catch(e){
+      showSyncStatus('Could not read that Excel file.', true);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
 
 const CUSTOMER_ORDER = ["ALDI", "COLES", "WW", "PROPRIETARY"];
 
@@ -314,6 +521,24 @@ function renderBrowseList(){
 
 renderBrowseList();
 
+document.getElementById('exportJsonBtn').addEventListener('click', exportJSON);
+document.getElementById('exportExcelBtn').addEventListener('click', exportExcel);
+document.getElementById('importBtn').addEventListener('click', ()=>{
+  document.getElementById('importFile').click();
+});
+document.getElementById('importFile').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  if(file.name.toLowerCase().endsWith('.json')){
+    importJSONFile(file);
+  } else if(file.name.toLowerCase().match(/\.xlsx?$/)){
+    importExcelFile(file);
+  } else {
+    showSyncStatus('Please choose a .json or .xlsx file.', true);
+  }
+  e.target.value = ''; // allow re-importing the same file later
+});
+
 function closeSuggestions(){
   suggestions.classList.remove('open');
   suggestions.innerHTML = '';
@@ -391,7 +616,126 @@ function field(label, value){
   return `<div class="field"><div class="label">${label}</div><div class="value">${value||'—'}</div></div>`;
 }
 
-function render(p){
+const EDITABLE_FIELDS_META = [
+  {key:'name', label:'Product Name'},
+  {key:'shelfLife', label:'Shelf Life'},
+  {key:'barcodeLast4', label:'Last 4 Digits of Unit Barcode'},
+  {key:'claims', label:'Product Claims'},
+  {key:'allergens', label:'Allergens'},
+  {key:'unitBarcode', label:'Unit Barcode'},
+  {key:'gtin', label:'GTIN Barcode'},
+  {key:'netWeight', label:'Net Weight'},
+  {key:'waxPapers', label:'Wax Papers'},
+  {key:'traySize', label:'Tray Size'},
+  {key:'trayColour', label:'Tray Colour'},
+  {key:'unitsPerTray', label:'Units per Tray'},
+  {key:'unitsPerCarton', label:'Units per Carton'},
+  {key:'labelPlacement', label:'Label/Sleeve Placement'},
+  {key:'cartonCode', label:'Carton/Crate Code'},
+  {key:'cartonWeight', label:'Carton/Crate Weight'},
+  {key:'flu', label:'FLU #'},
+  {key:'t1', label:'T1 (g)'},
+  {key:'t2', label:'T2 (g)'},
+  {key:'bizerbaTareG', label:'Bizerba Tare (g)'},
+  {key:'xray', label:'X-Ray/Metal Detector Program'},
+  {key:'handwrittenCode', label:'Handwritten Reference Code'}
+];
+
+function render(p, editMode){
+  const overrides = loadOverrides();
+  const hasOverride = !!overrides[p.code];
+
+  if(editMode){
+    // snapshot so Cancel can revert exactly what existed before this edit session
+    const sessionStartOverride = overrides[p.code] ? {...overrides[p.code]} : null;
+    const sessionStartProduct = {...p};
+
+    main.innerHTML = `
+      <button type="button" class="back-btn" id="backBtn">← All products</button>
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <span class="badge ${p.customer.toLowerCase()}">${p.customer}</span>
+            <h2>Editing: ${p.name}</h2>
+          </div>
+        </div>
+        <div class="edit-note">Changes save automatically to this device/browser as you type. Farm Foods Product Code (${p.code}) can't be changed since it's used to identify the product.</div>
+        <div class="autosave-status" id="autosaveStatus">No changes yet</div>
+        <div class="grid">
+          ${EDITABLE_FIELDS_META.map(f=>`
+            <div class="field edit-field">
+              <div class="label">${f.label}</div>
+              <input type="text" data-key="${f.key}" value="${(p[f.key]||'').toString().replace(/"/g,'&quot;')}">
+            </div>
+          `).join('')}
+        </div>
+        <div class="edit-actions">
+          <button type="button" class="btn-save" id="saveBtn">✓ Done</button>
+          <button type="button" class="btn-cancel" id="cancelBtn">Cancel changes</button>
+          ${hasOverride ? `<button type="button" class="btn-reset" id="resetBtn">↺ Reset this product to original</button>` : ''}
+        </div>
+      </div>`;
+
+    const statusEl = document.getElementById('autosaveStatus');
+    let debounceTimer = null;
+
+    function collectValues(){
+      const updated = {};
+      main.querySelectorAll('[data-key]').forEach(input=>{
+        updated[input.getAttribute('data-key')] = input.value;
+      });
+      return updated;
+    }
+
+    function persistNow(){
+      const updated = collectValues();
+      const allOverrides = loadOverrides();
+      allOverrides[p.code] = updated;
+      saveOverrides(allOverrides);
+      Object.assign(p, updated);
+      if(statusEl) statusEl.textContent = '✓ Saved';
+    }
+
+    main.querySelectorAll('[data-key]').forEach(input=>{
+      input.addEventListener('input', ()=>{
+        if(statusEl) statusEl.textContent = 'Saving…';
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(persistNow, 600);
+      });
+    });
+
+    document.getElementById('backBtn').addEventListener('click', ()=>{ clearTimeout(debounceTimer); persistNow(); renderBrowseList(); });
+    document.getElementById('cancelBtn').addEventListener('click', ()=>{
+      clearTimeout(debounceTimer);
+      const allOverrides = loadOverrides();
+      if(sessionStartOverride){
+        allOverrides[p.code] = sessionStartOverride;
+      } else {
+        delete allOverrides[p.code];
+      }
+      saveOverrides(allOverrides);
+      Object.assign(p, sessionStartProduct);
+      render(p, false);
+    });
+    document.getElementById('saveBtn').addEventListener('click', ()=>{
+      clearTimeout(debounceTimer);
+      persistNow();
+      render(p, false);
+    });
+    if(hasOverride){
+      document.getElementById('resetBtn').addEventListener('click', ()=>{
+        const allOverrides = loadOverrides();
+        delete allOverrides[p.code];
+        saveOverrides(allOverrides);
+        const original = ORIGINAL_PRODUCTS.find(op=>op.code===p.code);
+        if(original) Object.assign(p, original);
+        render(p, false);
+      });
+    }
+    window.scrollTo(0,0);
+    return;
+  }
+
   main.innerHTML = `
     <button type="button" class="back-btn" id="backBtn">← All products</button>
     <div class="card">
@@ -403,6 +747,7 @@ function render(p){
         ${p.handwrittenCode ? `<div class="hw-pill"><span class="hw-label">Handwritten Ref</span><span class="hw-value">${p.handwrittenCode}</span></div>` : ''}
       </div>
       <div class="allergen-flag">⚠ Allergens: ${p.allergens}</div>
+      ${hasOverride ? `<div class="edited-flag">✎ This product has local edits</div>` : ''}
       <div class="bbd-calc">
         <div class="bbd-title">Calculate Best-Before Date</div>
         <div class="bbd-row">
@@ -434,7 +779,10 @@ function render(p){
         ${field("X-Ray/Metal Detector Program", p.xray)}
       </div>
       <div class="note">Sourced from the QMx-004 Product Information &amp; Packaging Matrix and cross-checked (net weight × units/carton = carton weight) for consistency.</div>
+      <button type="button" class="edit-btn" id="editBtn">✎ Edit this product</button>
     </div>`;
+
+  document.getElementById('editBtn').addEventListener('click', ()=>render(p, true));
 
   const dateInput = document.getElementById('prodDate');
   const today = new Date();
